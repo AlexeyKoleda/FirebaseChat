@@ -6,10 +6,54 @@
 //
 
 import SwiftUI
+import SDWebImageSwiftUI
+
+struct ChatUser {
+    let uid, email, profileImageUrl: String
+}
+
+class MainMessagesViewModel: ObservableObject {
+    
+    @Published var errorMessage = ""
+    @Published var chatUser: ChatUser?
+    
+    init() {
+        fetchCurrentUser()
+    }
+    
+    private func fetchCurrentUser() {
+        guard let uid = FirebaseManager.shared.auth.currentUser?.uid else {
+            self.errorMessage = "Could not find firebase uid"
+            return
+        }
+       
+        FirebaseManager.shared.firestore.collection("users").document(uid).getDocument { snapshot, error in
+            if let error = error {
+                self.errorMessage = "Failet to fetch current user: \(error)"
+                return
+            }
+            
+            guard let data = snapshot?.data() else {
+                self.errorMessage = "No data found"
+                return
+            }
+            
+            let uid = data["uid"] as? String ?? ""
+            let email = data["email"] as? String ?? ""
+            let profileImageUrl = data["profileImageUrl"] as? String ?? ""
+            
+            self.chatUser = ChatUser(uid: uid, email: email, profileImageUrl: profileImageUrl)
+        }
+        
+    }
+    
+}
 
 struct MainMessagesView: View {
     
     @State var shouldShowLogoutOptions = false
+    
+    @ObservedObject private var vm = MainMessagesViewModel()
     
     var body: some View {
         NavigationView {
@@ -25,10 +69,19 @@ struct MainMessagesView: View {
     private var customNavBar: some View {
         HStack(spacing: 16) {
             
-            Image(systemName: "person")
-                .font(.system(size: 34, weight: .heavy))
+            WebImage(url: URL(string: vm.chatUser?.profileImageUrl ?? ""))
+                .resizable()
+                .scaledToFill()
+                .clipped()
+                .frame(width: 50, height: 50)
+                .cornerRadius(50)
+                .overlay(RoundedRectangle(cornerRadius: 32)
+                            .stroke(Color(.label), lineWidth: 1))
+                .shadow(radius: 5)
+            
             VStack(alignment: .leading, spacing: 4) {
-                Text("UserName")
+                let email = vm.chatUser?.email.replacingOccurrences(of: "@gmail.com", with: "") ?? ""
+                Text(email)
                     .font(.system(size: 24, weight: .bold))
                 HStack {
                     Circle()
@@ -71,7 +124,7 @@ struct MainMessagesView: View {
                                         .stroke(Color(.label), lineWidth: 1))
                         
                         VStack(alignment: .leading) {
-                            Text("Username")
+                            Text("Anonimous")
                                 .font(.system(size: 16, weight: .bold))
                             Text("Message sent to user")
                                 .font(.system(size: 14))
