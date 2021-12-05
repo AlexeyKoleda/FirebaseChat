@@ -105,9 +105,9 @@ struct LoginView: View {
         }
 
         FirebaseManager.shared.auth.createUser(withEmail: email, password: password) {
-            result, err in
-            if let err = err {
-                self.loginStatusMessage = "Failed to create user: \(err)"
+            result, error in
+            if let error = error {
+                self.loginStatusMessage = "Failed to create user: \(error)"
                 return
             }
             self.loginStatusMessage = "Successfully create user: \(result?.user.uid ?? "")"
@@ -118,9 +118,9 @@ struct LoginView: View {
     
     private func loginUser() {
         FirebaseManager.shared.auth.signIn(withEmail: email, password: password) {
-            result, err in
-            if let err = err {
-                self.loginStatusMessage = "Failed to login user: \(err)"
+            result, error in
+            if let error = error {
+                self.loginStatusMessage = "Failed to login user: \(error)"
                 return
             }
             self.loginStatusMessage = "Successfully logged in as user: \(result?.user.uid ?? "")"
@@ -135,15 +135,15 @@ struct LoginView: View {
         let ref = FirebaseManager.shared.storage.reference(withPath: uid)
         guard let imageData = self.image?.jpegData(compressionQuality: 0.5) else { return }
         
-        ref.putData(imageData, metadata: nil) { imageData, err in
-            if let err = err {
-                self.loginStatusMessage = "Failed to push image to Storage: \(err)"
+        ref.putData(imageData, metadata: nil) { imageData, error in
+            if let error = error {
+                self.loginStatusMessage = "Failed to push image to Storage: \(error)"
                 return
             }
             
-            ref.downloadURL { url, err in
-                if let err = err {
-                    self.loginStatusMessage = "Failed to retrive download URL: \(err)"
+            ref.downloadURL { url, error in
+                if let error = error {
+                    self.loginStatusMessage = "Failed to retrive download URL: \(error)"
                     return
                 }
                 
@@ -159,9 +159,9 @@ struct LoginView: View {
     private func storeUserInfo(imageProfileUrl: URL) {
         guard let uid = FirebaseManager.shared.auth.currentUser?.uid else { return }
         let userData = ["email": self.email, "uid": uid, "profileImageUrl": imageProfileUrl.absoluteString]
-        FirebaseManager.shared.firestore.collection("users").document(uid).setData(userData) { err in
-            if let err = err {
-                self.loginStatusMessage = "\(err)"
+        FirebaseManager.shared.firestore.collection("users").document(uid).setData(userData) { error in
+            if let error = error {
+                self.loginStatusMessage = "\(error)"
                 return
             }
         }

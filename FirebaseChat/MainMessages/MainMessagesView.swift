@@ -29,7 +29,7 @@ class MainMessagesViewModel: ObservableObject {
        
         FirebaseManager.shared.firestore.collection("users").document(uid).getDocument { snapshot, error in
             if let error = error {
-                self.errorMessage = "Failet to fetch current user: \(error)"
+                self.errorMessage = "Failed to fetch current user: \(error)"
                 return
             }
             guard let data = snapshot?.data() else {
@@ -49,6 +49,7 @@ class MainMessagesViewModel: ObservableObject {
 struct MainMessagesView: View {
     
     @State var shouldShowLogoutOptions = false
+    @State var shouldShowNewMessageScreen = false
     
     @ObservedObject private var vm = MainMessagesViewModel()
     
@@ -149,7 +150,7 @@ struct MainMessagesView: View {
     
     private var newMessageButton: some View {
         Button{
-            
+            shouldShowNewMessageScreen.toggle()
         } label: {
             HStack {
                 Spacer()
@@ -162,6 +163,9 @@ struct MainMessagesView: View {
             .background(Color.blue).cornerRadius(32)
             .padding(.horizontal)
             .shadow(radius: 15)
+        }
+        .fullScreenCover(isPresented: $shouldShowNewMessageScreen) {
+            CreateNewMessageView()
         }
     }
 }
