@@ -8,20 +8,20 @@
 import SwiftUI
 import SDWebImageSwiftUI
 
-struct ChatUser {
-    let uid, email, profileImageUrl: String
-}
-
 class MainMessagesViewModel: ObservableObject {
     
     @Published var errorMessage = ""
     @Published var chatUser: ChatUser?
+    @Published var isUserCurrentlyLiggedOut = false
     
     init() {
+        DispatchQueue.main.async {
+            self.isUserCurrentlyLiggedOut = FirebaseManager.shared.auth.currentUser?.uid == nil
+        }
         fetchCurrentUser()
     }
     
-    private func fetchCurrentUser() {
+    func fetchCurrentUser() {
         guard let uid = FirebaseManager.shared.auth.currentUser?.uid else {
             self.errorMessage = "Could not find firebase uid"
             return
@@ -32,21 +32,18 @@ class MainMessagesViewModel: ObservableObject {
                 self.errorMessage = "Failet to fetch current user: \(error)"
                 return
             }
-            
             guard let data = snapshot?.data() else {
                 self.errorMessage = "No data found"
                 return
             }
-            
-            let uid = data["uid"] as? String ?? ""
-            let email = data["email"] as? String ?? ""
-            let profileImageUrl = data["profileImageUrl"] as? String ?? ""
-            
-            self.chatUser = ChatUser(uid: uid, email: email, profileImageUrl: profileImageUrl)
+            self.chatUser = .init(data: data)
         }
-        
     }
     
+    func handleSignOut() {
+        isUserCurrentlyLiggedOut.toggle()
+        try? FirebaseManager.shared.auth.signOut()
+    }
 }
 
 struct MainMessagesView: View {
@@ -78,7 +75,7 @@ struct MainMessagesView: View {
                 .overlay(RoundedRectangle(cornerRadius: 32)
                             .stroke(Color(.label), lineWidth: 1))
                 .shadow(radius: 5)
-            
+
             VStack(alignment: .leading, spacing: 4) {
                 let email = vm.chatUser?.email.replacingOccurrences(of: "@gmail.com", with: "") ?? ""
                 Text(email)
@@ -106,9 +103,16 @@ struct MainMessagesView: View {
             .init(title: Text("Settings"), message: Text("What do you want to do?"), buttons: [
                 .destructive(Text("Sigh Out"), action: {
                     print("handle sign out")
+                    vm.handleSignOut()
                 }),
                 .cancel()
             ])
+        }
+        .fullScreenCover(isPresented: $vm.isUserCurrentlyLiggedOut, onDismiss: nil) {
+            LoginView(didCompleteLiginProcess: {
+                self.vm.isUserCurrentlyLiggedOut = false
+                self.vm.fetchCurrentUser()
+            })
         }
     }
     

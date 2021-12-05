@@ -9,11 +9,14 @@ import SwiftUI
 
 struct LoginView: View {
     
-    @State var isLoginMode = false
-    @State var shouldShowInagePicker = false
+    let didCompleteLiginProcess: () -> ()
     
-    @State var email = ""
-    @State var password = ""
+    @State var image: UIImage?
+    @State private var isLoginMode = false
+    @State private var shouldShowInagePicker = false
+    
+    @State private var email = ""
+    @State private var password = ""
     
     var body: some View {
         NavigationView {
@@ -37,7 +40,6 @@ struct LoginView: View {
                                         .scaledToFill()
                                         .frame(width: 128, height: 128)
                                         .cornerRadius(64)
-                                        
                                 } else {
                                     Image(systemName: "person.fill")
                                         .font(.system(size: 64))
@@ -47,7 +49,6 @@ struct LoginView: View {
                             }
                             .overlay(RoundedRectangle(cornerRadius: 64)
                                         .stroke(Color.black, lineWidth: 3))
-
                         }
                     }
                     
@@ -55,7 +56,6 @@ struct LoginView: View {
                         TextField("Email", text: $email)
                             .keyboardType(.emailAddress)
                             .autocapitalization(.none)
-
                         SecureField("Password", text: $password)
                     }
                     .padding(12)
@@ -71,7 +71,6 @@ struct LoginView: View {
                             .font(.system(size: 14, weight: .semibold))
                             .background(Color.blue)
                     }
-                    
                     Text(self.loginStatusMessage)
                         .foregroundColor(Color.red)
                 }
@@ -87,8 +86,6 @@ struct LoginView: View {
         }
     }
     
-    @State var image: UIImage?
-    
     private func handleAction() {
         if isLoginMode {
             loginUser()
@@ -102,13 +99,18 @@ struct LoginView: View {
     @State var loginStatusMessage = ""
     
     private func createNewAccount() {
+        if self.image == nil {
+            self.loginStatusMessage = "You must select an avatar image"
+            return
+        }
+
         FirebaseManager.shared.auth.createUser(withEmail: email, password: password) {
             result, err in
             if let err = err {
-                self.loginStatusMessage = "Failed to login user: \(err)"
+                self.loginStatusMessage = "Failed to create user: \(err)"
                 return
             }
-            self.loginStatusMessage = "Successfully logged in as user: \(result?.user.uid ?? "")"
+            self.loginStatusMessage = "Successfully create user: \(result?.user.uid ?? "")"
             
             self.persistImageToStorage()
         }
@@ -118,10 +120,12 @@ struct LoginView: View {
         FirebaseManager.shared.auth.signIn(withEmail: email, password: password) {
             result, err in
             if let err = err {
-                self.loginStatusMessage = "Failed to create user: \(err)"
+                self.loginStatusMessage = "Failed to login user: \(err)"
                 return
             }
-            self.loginStatusMessage = "Successfully create user: \(result?.user.uid ?? "")"
+            self.loginStatusMessage = "Successfully logged in as user: \(result?.user.uid ?? "")"
+            
+            self.didCompleteLiginProcess()
         }
     }
     
@@ -161,14 +165,13 @@ struct LoginView: View {
                 return
             }
         }
-        
         print("Success")
+        self.didCompleteLiginProcess()
     }
-
 }
 
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
-        LoginView()
+        LoginView(didCompleteLiginProcess: {})
     }
 }
