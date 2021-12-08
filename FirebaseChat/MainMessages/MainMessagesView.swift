@@ -13,12 +13,42 @@ class MainMessagesViewModel: ObservableObject {
     @Published var errorMessage = ""
     @Published var chatUser: ChatUser?
     @Published var isUserCurrentlyLiggedOut = false
+    @Published var recentMessages = [RecentMessage]()
     
     init() {
         DispatchQueue.main.async {
             self.isUserCurrentlyLiggedOut = FirebaseManager.shared.auth.currentUser?.uid == nil
         }
         fetchCurrentUser()
+        fetchRecentMessages()
+    }
+    
+    private func fetchRecentMessages() {
+        guard let uid = FirebaseManager.shared.auth.currentUser?.uid else { return }
+        
+        FirebaseManager.shared.firestore.collection("recent_messages")
+            .document(uid)
+            .collection("messages")
+            .order(by: FBConst.timestamp)
+            .addSnapshotListener { querySnapshot, error in
+                if let error = error {
+                    self.errorMessage = "Failed to listen for recent messages: \(error)"
+                    return
+                }
+
+                querySnapshot?.documentChanges.forEach({ change in
+                    let data = change.document.data()
+                    let docId = change.document.documentID
+                    
+                    if let index = self.recentMessages.firstIndex(where: { rm in
+                        return rm.documentId == docId
+                    }) {
+                        self.recentMessages.remove(at: index)
+                    }
+
+                    self.recentMessages.insert(.init(documentId: docId, data: data), at: 0)
+                })
+            }
     }
     
     func fetchCurrentUser() {
@@ -27,7 +57,9 @@ class MainMessagesViewModel: ObservableObject {
             return
         }
        
-        FirebaseManager.shared.firestore.collection("users").document(uid).getDocument { snapshot, error in
+        FirebaseManager.shared.firestore.collection("users")
+            .document(uid)
+            .getDocument { snapshot, error in
             if let error = error {
                 self.errorMessage = "Failed to fetch current user: \(error)"
                 return
@@ -124,24 +156,30 @@ struct MainMessagesView: View {
     
     private var messagesView: some View {
         ScrollView {
-            ForEach(0..<10, id: \.self) { num in
+            ForEach(vm.recentMessages) { recentMessage in
                 VStack {
                     NavigationLink(
                         destination: Text("Destination"),
                         label: {
                             HStack(spacing: 16) {
-                                Image(systemName: "person.fill")
-                                    .font(.system(size: 32))
-                                    .padding(8)
+                                WebImage(url: URL(string: recentMessage.profileImageUrl))
+                                    .resizable()
+                                    .scaledToFill()
+                                    .clipped()
+                                    .frame(width: 50, height: 50)
+                                    .cornerRadius(50)
                                     .overlay(RoundedRectangle(cornerRadius: 32)
                                                 .stroke(Color(.label), lineWidth: 1))
+                                    .shadow(radius: 5)
                                 
-                                VStack(alignment: .leading) {
-                                    Text("Anonimous")
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text(recentMessage.email)
                                         .font(.system(size: 16, weight: .bold))
-                                    Text("Message sent to user")
+                                        .foregroundColor(Color(.label))
+                                    Text(recentMessage.text)
                                         .font(.system(size: 14))
                                         .foregroundColor(Color(.lightGray))
+                                        .multilineTextAlignment(.leading)
                                 }
                                 Spacer()
                                 Text("2d")

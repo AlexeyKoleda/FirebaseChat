@@ -7,9 +7,11 @@
 
 import Foundation
 
-struct FirebaseConstants {
+struct FBConst {
     static let fromId = "fromId"
     static let toId = "toId"
     static let text = "text"
+    static let email = "email"
     static let timestamp = "timestamp"
+    static let profileImageUrl = "profileImageUrl"
 }
