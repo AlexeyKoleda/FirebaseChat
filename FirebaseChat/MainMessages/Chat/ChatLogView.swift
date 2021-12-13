@@ -15,18 +15,22 @@ class ChatLogViewModel: ObservableObject {
     @Published var count = 0
     @Published var chatMessages = [ChatMessage]()
     
-    let chatUser: ChatUser?
+    var firestoreListener: ListenerRegistration?
+    var chatUser: ChatUser?
     
     init(chatUser: ChatUser?) {
         self.chatUser = chatUser
-        
+    
         fetchMessages()
     }
     
-    private func fetchMessages() {
+    func fetchMessages() {
+        firestoreListener?.remove()
+        chatMessages.removeAll()
+        
         guard let fromId = FirebaseManager.shared.auth.currentUser?.uid else { return }
         guard let toId = chatUser?.uid else { return }
-        FirebaseManager.shared.firestore.collection("messages")
+        self.firestoreListener = FirebaseManager.shared.firestore.collection(FBConst.messages)
             .document(fromId)
             .collection(toId)
             .order(by: FBConst.timestamp)
@@ -38,9 +42,14 @@ class ChatLogViewModel: ObservableObject {
                 
                 querySnapshot?.documentChanges.forEach({ change in
                     if change.type == .added {
-                        let data = change.document.data()
-                        let docId = change.document.documentID
-                        self.chatMessages.append(.init(documentId: docId, data: data))
+                        do {
+                            if let cm = try change.document.data(as: ChatMessage.self) {
+                                self.chatMessages.append(cm)
+                                print("Appending chatMessage in chatLogView \(Date())")
+                            }
+                        } catch {
+                            print("Failed to decore message: \(error)")
+                        }
                     }
                 })
                 DispatchQueue.main.async {
@@ -53,15 +62,16 @@ class ChatLogViewModel: ObservableObject {
         guard let fromId = FirebaseManager.shared.auth.currentUser?.uid else { return }
         guard let toId = chatUser?.uid else { return }
         
-        let document = FirebaseManager.shared.firestore.collection("messages")
+        let document = FirebaseManager.shared.firestore.collection(FBConst.messages)
             .document(fromId)
             .collection(toId)
             .document()
         
-        let messageData = [FBConst.fromId: fromId, FBConst.toId: toId, FBConst.text: self.chatText, FBConst.timestamp: Timestamp()] as [String : Any]
+        let msg = ChatMessage(id: nil, fromId: fromId, toId: toId, text: chatText, timestamp: Date())
         
-        document.setData(messageData) { error in
+        try? document.setData(from: msg) { error in
             if let error = error {
+                print(error)
                 self.errorMessage = "Failed to save message into Firestore: \(error)"
                 return
             }
@@ -73,12 +83,12 @@ class ChatLogViewModel: ObservableObject {
             self.count += 1
         }
         
-        let recipientMessageDocument = FirebaseManager.shared.firestore.collection("messages")
+        let recipientMessageDocument = FirebaseManager.shared.firestore.collection(FBConst.messages)
             .document(toId)
             .collection(fromId)
             .document()
 
-        recipientMessageDocument.setData(messageData) { error in
+        try? recipientMessageDocument.setData(from: msg) { error in
             if let error = error {
                 self.errorMessage = "Failed to save message into Firestore: \(error)"
                 return
@@ -92,9 +102,9 @@ class ChatLogViewModel: ObservableObject {
         guard let uid = FirebaseManager.shared.auth.currentUser?.uid else { return }
         guard let toId = self.chatUser?.uid else { return }
         
-        let document = FirebaseManager.shared.firestore.collection("recent_messages")
+        let document = FirebaseManager.shared.firestore.collection(FBConst.recentMessages)
             .document(uid)
-            .collection("messages")
+            .collection(FBConst.messages)
             .document(toId)
         
         let data = [
@@ -106,8 +116,6 @@ class ChatLogViewModel: ObservableObject {
              FBConst.email: chatUser.email
          ] as [String : Any]
 
-         // you'll need to save another very similar dictionary for the recipient of this message...how?
-
          document.setData(data) { error in
              if let error = error {
                  self.errorMessage = "Failed to save recent message: \(error)"
@@ -115,16 +123,6 @@ class ChatLogViewModel: ObservableObject {
                  return
              }
          }
-
-//        guard let currentUser = FirebaseManager.shared.auth.currentUser else { return }
-//         let recipientRecentMessageDictionary = [
-//             FBConst.timestamp: Timestamp(),
-//             FBConst.text: self.chatText,
-//             FBConst.fromId: uid,
-//             FBConst.toId: toId,
-//             FBConst.profileImageUrl: currentUser.profileImageUrl,
-//             FBConst.email: currentUser.email
-//         ] as [String : Any]
     }
 }
 
@@ -132,14 +130,14 @@ struct ChatLogView: View {
     
     static var emptyScrollToString = "Empty"
     
-    @ObservedObject private var vm: ChatLogViewModel
+    @ObservedObject var vm: ChatLogViewModel
     
-    let chatUser: ChatUser?
-    
-    init(chatUser: ChatUser?) {
-        self.chatUser = chatUser
-        self.vm = .init(chatUser: chatUser)
-    }
+//    let chatUser: ChatUser?
+//
+//    init(chatUser: ChatUser?) {
+//        self.chatUser = chatUser
+//        self.vm = .init(chatUser: chatUser)
+//    }
     
     var body: some View {
         VStack {
@@ -149,8 +147,11 @@ struct ChatLogView: View {
             }
             sendMessageBar
         }
-        .navigationTitle(chatUser?.email ?? "")
+        .navigationTitle(vm.chatUser?.email ?? "")
         .navigationBarTitleDisplayMode(.inline)
+        .onDisappear(perform: {
+            vm.firestoreListener?.remove()
+        })
     }
     
     private var messagesView: some View {
@@ -253,11 +254,11 @@ struct ChatLogView_Previews: PreviewProvider {
     static var previews: some View {
         MainMessagesView()
         NavigationView {
-            ChatLogView(chatUser:
+            ChatLogView(vm: ChatLogViewModel(chatUser:
                             .init(data: [
                                         "uid": "4agMe757TQUeMiW9sbysYDhZGk73",
                                         "email": "waterfall@gmail.com"
-            ]))
+            ])))
         }
     }
 }

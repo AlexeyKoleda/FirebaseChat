@@ -8,6 +8,11 @@
 import Foundation
 
 struct FBConst {
+    static let users = "users"
+    static let messages = "messages"
+    static let recentMessages = "recent_messages"
+    
+    static let uid = "uid"
     static let fromId = "fromId"
     static let toId = "toId"
     static let text = "text"
