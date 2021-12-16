@@ -8,33 +8,6 @@
 import SwiftUI
 import SDWebImageSwiftUI
 
-class CreateNewMessageViewModel: ObservableObject {
-    
-    @Published var errorMessage = ""
-    @Published var users = [ChatUser]()
-    
-    init() {
-        fetchAllUsers()
-    }
-    
-    private func fetchAllUsers() {
-        FirebaseManager.shared.firestore.collection(FBConst.users).getDocuments { documentsSnapshot, error in
-            if let error = error {
-                self.errorMessage = "Failed to fetch users: \(error)"
-                return
-            }
-            
-            documentsSnapshot?.documents.forEach({ snapshot in
-                let data = snapshot.data()
-                let user = ChatUser(data: data)
-                if user.uid != FirebaseManager.shared.auth.currentUser?.uid {
-                    self.users.append(.init(data: data))
-                }
-            })
-        }
-    }
-}
-
 struct CreateNewMessageView: View {
     
     let didSelectNewuser: (ChatUser) -> ()
